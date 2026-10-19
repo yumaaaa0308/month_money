@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>やりくり</title>
+
+<!-- PWA / iOS ホーム画面対応 -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b1120">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="やりくり">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1>やりくり</h1>
+</header>
+
+<main id="view-root" class="app-main"></main>
+
+<nav class="tab-bar" id="tab-bar">
+  <button class="tab-btn" data-view="home" aria-label="ホーム">
+    <span class="tab-icon">🏠</span><span class="tab-label">ホーム</span>
+  </button>
+  <button class="tab-btn" data-view="plan" aria-label="計画">
+    <span class="tab-icon">🗓️</span><span class="tab-label">計画</span>
+  </button>
+  <button class="tab-btn" data-view="records" aria-label="記録">
+    <span class="tab-icon">✏️</span><span class="tab-label">記録</span>
+  </button>
+  <button class="tab-btn" data-view="settings" aria-label="設定">
+    <span class="tab-icon">⚙️</span><span class="tab-label">設定</span>
+  </button>
+</nav>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/model.js"></script>
+<script src="js/views.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
