@@ -145,5 +145,79 @@ const Calc = (() => {
     };
   }
 
-  return { getCycle, summary };
+  // サイクルのカテゴリ別の実績。手入力(マネーフォワードの数字の転記)を優先し、
+  // なければ日付つきの記録(予定を除く)の合計を使う。どちらもなければnull
+  function actualOf(data, k, catId, requireEnded) {
+    const stored = data.cycles[k] || {};
+    if (stored.actuals && stored.actuals[catId] != null) {
+      return { value: stored.actuals[catId], source: "manual" };
+    }
+    const start = Cycle.startIso(k, data.settings.payday);
+    const end = Cycle.endIso(k, data.settings.payday);
+    // 終わっていないサイクルの記録は途中経過なので、目安や精度の計算(requireEnded)では使わない
+    if (requireEnded && end >= Fmt.todayIso()) return null;
+    const mine = data.entries.filter((e) => e.catId === catId && !e.planned && e.date >= start && e.date <= end);
+    if (!mine.length) return null;
+    return { value: sum(mine, (e) => e.amount), source: "entries" };
+  }
+
+  // 過去(kより前)の実績から、予測の目安を出す。前回・直近3回平均・直近6回の最大
+  function reference(data, k, catId) {
+    const past = [];
+    for (let i = 1; i <= 6; i++) {
+      const a = actualOf(data, Cycle.shift(k, -i), catId, true);
+      if (a) past.push(a.value);
+    }
+    if (!past.length) return null;
+    const recent = past.slice(0, 3);
+    return {
+      count: past.length,
+      last: past[0],
+      avg3: Math.round(sum(recent, (v) => v) / recent.length),
+      max: Math.max(...past)
+    };
+  }
+
+  // 予測と実績の比較(カテゴリごと)。実績のあるカテゴリだけ合計に含める
+  function review(data, k, requireEnded) {
+    const cyc = getCycle(data, k);
+    const rows = data.categories.map((c) => {
+      const a = actualOf(data, k, c.id, requireEnded);
+      const budget = cyc.hasPlan ? cyc.budgets[c.id] || 0 : null;
+      return {
+        cat: c, budget, actual: a ? a.value : null, source: a ? a.source : null,
+        diff: a && budget != null ? a.value - budget : null
+      };
+    });
+    const both = rows.filter((r) => r.diff != null);
+    return {
+      rows,
+      forecastTotal: sum(both, (r) => r.budget),
+      actualTotal: sum(both, (r) => r.actual),
+      hasComparison: both.length > 0
+    };
+  }
+
+  // 直近(kを含む最大6サイクル)の予測の当たり具合。予測と実績が両方あるサイクルのみ
+  function accuracy(data, k) {
+    const cycles = [];
+    for (let i = 0; i < 6; i++) {
+      const key = Cycle.shift(k, -i);
+      const r = review(data, key, true);
+      if (!r.hasComparison || r.forecastTotal <= 0) continue;
+      const diff = r.actualTotal - r.forecastTotal;
+      cycles.push({
+        key, start: Cycle.startIso(key, data.settings.payday),
+        forecast: r.forecastTotal, actual: r.actualTotal, diff, pct: diff / r.forecastTotal
+      });
+    }
+    if (!cycles.length) return { cycles, meanAbsPct: null, meanPct: null };
+    return {
+      cycles,
+      meanAbsPct: sum(cycles, (c) => Math.abs(c.pct)) / cycles.length,
+      meanPct: sum(cycles, (c) => c.pct) / cycles.length
+    };
+  }
+
+  return { getCycle, summary, actualOf, reference, review, accuracy };
 })();

@@ -41,9 +41,9 @@ const Views = (() => {
     const hasBudget = s.budgetsTotal > 0;
     const notice = !s.cyc.hasPlan
       ? `<div class="card">
-           <h2>このサイクルの計画がまだありません</h2>
-           <p class="note">給料日に「計画」タブで、収入・固定費から変動費に使える額を見積もって配分しましょう。${s.cyc.inherited ? "(いまは前回の配分を引き継いで表示しています)" : ""}</p>
-           <button class="btn btn-primary btn-block" data-action="goto" data-view="plan">計画を立てる</button>
+           <h2>このサイクルの予測がまだありません</h2>
+           <p class="note">給料日に「予測」タブで、収入・固定費から変動費に使える額を見積もって配分しましょう。${s.cyc.inherited ? "(いまは前回の配分を引き継いで表示しています)" : ""}</p>
+           <button class="btn btn-primary btn-block" data-action="goto" data-view="plan">予測を立てる</button>
          </div>`
       : "";
 
@@ -109,21 +109,48 @@ const Views = (() => {
       if (last && last.date === e.date) last.items.push(e);
       else groups.push({ date: e.date, items: [e] });
     });
+    const rv = Calc.review(data, s.key);
+    const acc = Calc.accuracy(data, s.key);
+    const signed = (n) => (n > 0 ? "+" : n < 0 ? "-" : "±") + Fmt.yen(Math.abs(n));
+    const pct = (p) => (p > 0 ? "+" : p < 0 ? "-" : "±") + (Math.abs(p) * 100).toFixed(1) + "%";
+    const actualInputs = rv.rows.map((r) => `
+      <div class="field">
+        <label><span class="dot" style="background:${r.cat.color}"></span>${esc(r.cat.name)}
+          <span class="label-right">予測 ${r.budget == null ? "未設定" : Fmt.yen(r.budget)}</span></label>
+        <input type="text" inputmode="numeric" class="comma-input-yen" name="act_${r.cat.id}"
+          value="${r.source === "manual" ? Fmt.inputYen(r.actual) : ""}"
+          placeholder="${r.source === "entries" ? Fmt.inputYen(r.actual) + "(記録の合計)" : "実績を入力"}">
+        ${r.diff != null ? `<div class="hint">差 <b class="${r.diff > 0 ? "neg" : ""}">${signed(r.diff)}</b>(${r.diff > 0 ? "予測より多かった" : r.diff < 0 ? "予測より少なかった" : "ぴったり"})</div>` : ""}
+      </div>`).join("");
+    const accRows = acc.cycles.map((c) => `
+      <div class="calc-line"><span>${Fmt.md(c.start)}〜</span><span>予測 ${Fmt.yen(c.forecast)} → 実績 ${Fmt.yen(c.actual)} <b class="${c.diff > 0 ? "neg" : ""}">(${pct(c.pct)})</b></span></div>`).join("");
     return `
       ${cycleNav(data, s)}
-      <div class="stat-grid">
-        <div class="stat"><div class="label">使用</div><div class="value">${Fmt.yen(s.spentTotal)}</div></div>
-        <div class="stat"><div class="label">予定</div><div class="value">${Fmt.yen(s.plannedTotal)}</div></div>
-      </div>
+      <form id="actuals-form" class="card">
+        <h2>予測と実績(カテゴリ別)</h2>
+        <p class="note">サイクルが終わったら、マネーフォワードのカテゴリ別の合計を転記します。予測との差が、次の予測の精度を上げる材料になります。</p>
+        ${actualInputs || `<div class="empty-state">カテゴリがありません。設定で追加してください。</div>`}
+        ${rv.hasComparison ? `<div class="calc-line calc-result"><span>合計の差(実績 − 予測)</span><b class="${rv.actualTotal - rv.forecastTotal > 0 ? "neg" : ""}">${signed(rv.actualTotal - rv.forecastTotal)}</b></div>` : ""}
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:12px">実績を保存</button>
+      </form>
+      ${acc.cycles.length ? `
+      <div class="card">
+        <h2>予測の当たり具合(直近${acc.cycles.length}サイクル)</h2>
+        ${accRows}
+        <div class="calc-line calc-result"><span>平均のずれ</span><b>${(acc.meanAbsPct * 100).toFixed(1)}%</b></div>
+        <div class="hint">${acc.meanPct > 0.005 ? `実績が予測より平均 ${(acc.meanPct * 100).toFixed(1)}% 多くなっています。` : acc.meanPct < -0.005 ? `実績が予測より平均 ${(Math.abs(acc.meanPct) * 100).toFixed(1)}% 少なくなっています。` : "予測と実績はほぼ一致しています。"}</div>
+      </div>` : ""}
+      <div class="section-title">日付つきの予定・記録</div>
+      <p class="note" style="padding:0 4px">交際費の予定など、日付が分かっているものはここに登録すると予測の流れに出ます。普段の細かい支出はマネーフォワードに任せて構いません。</p>
       <div class="fab-row" style="margin:14px 0">
-        <button class="btn btn-primary" style="flex:1" data-action="add-entry">＋ 支出を記録</button>
-        <button class="btn btn-secondary" style="flex:1" data-action="add-planned">＋ 予定を追加</button>
+        <button class="btn btn-primary" style="flex:1" data-action="add-planned">＋ 予定を追加</button>
+        <button class="btn btn-secondary" style="flex:1" data-action="add-entry">＋ 支出を記録</button>
       </div>
       ${groups.length
         ? groups.map((g) => `
           <div class="section-title">${Fmt.mdw(g.date)}</div>
           <div class="list">${g.items.map((e) => entryRow(data, e, true)).join("")}</div>`).join("")
-        : `<div class="empty-state">このサイクルの記録はまだありません</div>`}
+        : `<div class="empty-state">このサイクルの予定・記録はまだありません</div>`}
     `;
   }
 
@@ -147,11 +174,20 @@ const Views = (() => {
   }
 
   function renderPlan(data, s) {
-    const budgetInputs = data.categories.map((c) => `
+    const budgetInputs = data.categories.map((c) => {
+      const ref = Calc.reference(data, s.key, c.id);
+      const refHtml = ref
+        ? `<div class="hint">過去の実績: 前回 ${Fmt.yen(ref.last)} ／ 直近${Math.min(3, ref.count)}回平均 ${Fmt.yen(ref.avg3)} ／ 最大 ${Fmt.yen(ref.max)}
+             <button type="button" class="link-btn" data-action="fill-ref" data-cat="${c.id}" data-val="${ref.avg3}">平均を入れる</button></div>`
+        : `<div class="hint">「実績」タブに過去の実績を入れると、予測の目安が出ます</div>`;
+      return `
       <div class="field">
         <label><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</label>
         <input type="text" inputmode="numeric" class="comma-input-yen" data-bud="1" name="bud_${c.id}" value="${Fmt.inputYen(s.cyc.budgets[c.id] || 0)}">
-      </div>`).join("");
+        ${refHtml}
+      </div>`;
+    }).join("");
+    const outflow = s.fixedTotal + s.oneOffTotal + s.budgetsTotal;
 
     const timeline = s.timeline.length
       ? s.timeline.map((ev) => `
@@ -193,7 +229,7 @@ const Views = (() => {
         </div>
 
         <div class="card">
-          <h2>④ 変動費の配分</h2>
+          <h2>④ 変動費の予測(カテゴリ別)</h2>
           ${s.cyc.inherited && !s.cyc.hasPlan ? `<div class="hint" style="margin-bottom:10px">前回の配分を引き継いでいます。保存すると、このサイクルの配分になります。</div>` : ""}
           ${budgetInputs || `<div class="empty-state">カテゴリがありません。設定で追加してください。</div>`}
           <div class="calc-line"><span>配分の合計</span><span id="plan-budget-total">${Fmt.yen(s.budgetsTotal)}</span></div>
@@ -207,7 +243,15 @@ const Views = (() => {
           <div class="sub-number">この金額を給料日にデビットカードの口座へ入金します</div>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-block">計画を保存</button>
+        <div class="card">
+          <h2>この期間の支出予測(合計)</h2>
+          <div class="calc-line"><span>固定費・単発</span><span>-${Fmt.yen(s.fixedTotal + s.oneOffTotal)}</span></div>
+          <div class="calc-line"><span>変動費の予測</span><span id="plan-var-total">-${Fmt.yen(s.budgetsTotal)}</span></div>
+          <div class="calc-line calc-result"><span>支出の予測</span><b id="plan-outflow">-${Fmt.yen(outflow)}</b></div>
+          <div class="calc-line"><span>収入 − 支出 (残る額)</span><span id="plan-balance" class="${neg(s.cyc.income - outflow)}">${Fmt.yen(s.cyc.income - outflow)}</span></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">予測を保存</button>
       </form>
 
       <div class="section-title">予定の流れ(日付順)</div>

@@ -1,7 +1,14 @@
 (function () {
   let data = Storage.load();
-  let currentView = "home";
-  let cycleKey = Cycle.keyForDate(Fmt.todayIso(), data.settings.payday);
+  let currentView = "plan";
+  const currentCycleKey = () => Cycle.keyForDate(Fmt.todayIso(), data.settings.payday);
+  // 予測タブで最初に開くサイクル: 給料日まで7日以内なら次のサイクル(来月の予測を立てる時期)
+  const planCycleKey = () => {
+    const cur = currentCycleKey();
+    const daysToPayday = Cycle.daysBetween(Fmt.todayIso(), Cycle.startIso(Cycle.shift(cur, 1), data.settings.payday));
+    return daysToPayday <= 7 ? Cycle.shift(cur, 1) : cur;
+  };
+  let cycleKey = planCycleKey();
   const root = document.getElementById("view-root");
   const tabBar = document.getElementById("tab-bar");
 
@@ -38,6 +45,7 @@
   }
 
   function goto(view) {
+    if (view !== currentView) cycleKey = view === "plan" ? planCycleKey() : currentCycleKey();
     currentView = view;
     render();
     window.scrollTo(0, 0);
@@ -78,6 +86,15 @@
         cycleKey = Cycle.keyForDate(Fmt.todayIso(), data.settings.payday);
         render();
         break;
+
+      case "fill-ref": {
+        const input = document.querySelector(`#plan-form [name="bud_${el.dataset.cat}"]`);
+        if (input) {
+          input.value = Fmt.inputYen(Number(el.dataset.val) || 0);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        break;
+      }
 
       case "add-entry":
         openModal(Views.entryModal(data, null, { date: defaultEntryDate(), planned: false }));
@@ -192,6 +209,10 @@
     set("plan-budget-total", Fmt.yen(budgets));
     set("plan-unalloc", Fmt.yen(unalloc), unalloc < 0);
     set("plan-deposit", Fmt.yen(budgets));
+    const outflow = fixed + budgets;
+    set("plan-var-total", "-" + Fmt.yen(budgets));
+    set("plan-outflow", "-" + Fmt.yen(outflow));
+    set("plan-balance", Fmt.yen(income - outflow), income - outflow < 0);
   });
 
   // ---- バックアップの読み込み ----
@@ -240,7 +261,20 @@
       data.categories.forEach((c) => { budgets[c.id] = Math.round(Fmt.num(fd.get("bud_" + c.id))); });
       const prev = data.cycles[cycleKey] || {};
       data.cycles[cycleKey] = { ...prev, income: Math.round(Fmt.num(fd.get("income"))), budgets, oneOff: prev.oneOff || [] };
-      persistAndToast("計画を保存しました");
+      persistAndToast("予測を保存しました");
+    }
+
+    if (formId === "actuals-form") {
+      e.preventDefault();
+      // 空欄は未入力(日付つきの記録の合計があればそれを使う)
+      const actuals = {};
+      data.categories.forEach((c) => {
+        const raw = String(fd.get("act_" + c.id) || "").trim();
+        if (raw !== "") actuals[c.id] = Math.round(Fmt.num(raw));
+      });
+      const prev = data.cycles[cycleKey] || {};
+      data.cycles[cycleKey] = { ...prev, actuals };
+      persistAndToast("実績を保存しました");
     }
 
     if (formId === "entry-form") {
