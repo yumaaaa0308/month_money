@@ -262,3 +262,69 @@ html, body {
   max-width: 92vw;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- PC(幅900px以上): 左サイドバー + 広い表示領域 ---------- */
+@media (min-width: 900px) {
+  :root { --sidebar-w: 220px; }
+  body { padding-left: var(--sidebar-w); }
+
+  .app-header {
+    position: fixed;
+    top: 0; left: 0;
+    width: var(--sidebar-w);
+    height: 72px;
+    padding: 22px 24px 0;
+    background: var(--bg-elevated);
+    backdrop-filter: none;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    z-index: 11;
+  }
+  .app-header h1 { font-size: 18px; }
+
+  .tab-bar {
+    top: 72px; left: 0; right: auto; bottom: 0;
+    width: var(--sidebar-w);
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 8px 12px;
+    background: var(--bg-elevated);
+    backdrop-filter: none;
+    border-top: none;
+    border-right: 1px solid var(--border);
+  }
+  .tab-btn {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .tab-btn .tab-icon { font-size: 18px; }
+  .tab-btn:hover { background: rgba(255, 255, 255, 0.05); }
+  .tab-btn.active { background: rgba(20, 184, 166, 0.15); font-weight: 700; }
+
+  .app-main { max-width: 880px; padding: 28px 32px 48px; }
+  /* リスト(固定費・記録など)は2列に並べて、横幅を使い切る */
+  .app-main .list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .card:hover, .list-item:hover { border-color: #3a4870; }
+  .btn:hover, .btn-icon:hover { filter: brightness(1.12); }
+
+  .modal-backdrop { align-items: center; justify-content: center; }
+  .modal-sheet {
+    width: 520px;
+    max-width: calc(100vw - 48px);
+    border-radius: 20px;
+    padding: 24px;
+    max-height: 90vh;
+    border: 1px solid var(--border);
+  }
+
+  .toast { bottom: 28px; left: calc(50% + var(--sidebar-w) / 2); }
+}
